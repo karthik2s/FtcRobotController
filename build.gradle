@@ -8,6 +8,14 @@ buildscript {
     repositories {
         mavenCentral()
         google()
+        maven {
+            url 'https://maven.brott.dev'
+            metadataSources {
+                mavenPom()
+                artifact()
+            }
+        }
+        maven { url 'https://jitpack.io' }
     }
 }
 
@@ -23,9 +31,25 @@ allprojects {
     repositories {
         mavenCentral()
         google()
+        maven {
+            url 'https://maven.brott.dev'
+            metadataSources {
+                mavenPom()
+                artifact()
+            }
+        }
+        maven { url 'https://jitpack.io' }
     }
 }
 
 repositories {
     mavenCentral()
+    maven {
+        url 'https://maven.brott.dev'
+        metadataSources {
+            mavenPom()
+            artifact()
+        }
+    }
+    maven { url 'https://jitpack.io' }
 }

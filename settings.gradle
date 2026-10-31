@@ -3,6 +3,14 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        maven {
+            url 'https://maven.brott.dev'
+            metadataSources {
+                mavenPom()
+                artifact()
+            }
+        }
+        maven { url 'https://jitpack.io' }
     }
 }
 
