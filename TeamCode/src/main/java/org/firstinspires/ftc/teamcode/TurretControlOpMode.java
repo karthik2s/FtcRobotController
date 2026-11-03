@@ -37,7 +37,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 public class TurretControlOpMode extends LinearOpMode {
 
     // --- HARDWARE CONFIGURATION ---
-    public static String MOTOR_NAME = "turretMotor";
+    public static String MOTOR_NAME = "turret";
     public static boolean REVERSE_MOTOR = false;
 
     // --- GEAR RATIO & MOTOR CONSTANTS ---
@@ -67,12 +67,21 @@ public class TurretControlOpMode extends LinearOpMode {
         // Broadcast telemetry to both Driver Station and FTC Dashboard
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        // Initialize Turret Motor
+        // Initialize Turret Motor with fallback lookup
         try {
             turretMotor = hardwareMap.get(DcMotorEx.class, MOTOR_NAME);
-        } catch (Exception e) {
-            telemetry.addData("ERROR", "Motor '%s' not found in Robot Configuration!", MOTOR_NAME);
+        } catch (Exception e1) {
+            try {
+                turretMotor = hardwareMap.get(DcMotorEx.class, "turretMotor");
+            } catch (Exception e2) {
+                turretMotor = null;
+            }
+        }
+
+        if (turretMotor == null) {
+            telemetry.addData("ERROR", "Turret Motor not found in Robot Configuration! (Name it 'turret' or 'turretMotor')");
             telemetry.update();
+            sleep(3000);
             return;
         }
 

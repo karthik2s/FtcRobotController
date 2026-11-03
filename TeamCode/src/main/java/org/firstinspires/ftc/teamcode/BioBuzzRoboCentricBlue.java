@@ -15,6 +15,11 @@ import com.qualcomm.robotcore.util.Range;
  * Dedicated TeleOp OpMode for BLUE Alliance.
  * Filtered strictly to Blue Alliance AprilTags: Left (39, 40) | Right (43, 44).
  */
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+
+@Disabled
 @Config
 @TeleOp(name = "BioBuzz Robo Centric - BLUE", group = "TeleOp")
 public class BioBuzzRoboCentricBlue extends LinearOpMode {
@@ -38,7 +43,7 @@ public class BioBuzzRoboCentricBlue extends LinearOpMode {
     public static double RIGHT_SERVO_TRIM_OFFSET = 0.0;   // Optional fine trim offset for right servo
 
     // --- Axon Gate & Shifter Servo Configuration (Gamepad 2) ---
-    public static double OPEN_POSITION = 0.5;           // Gate Open position
+    public static double OPEN_POSITION = 0.4;           // Gate Open position
     public static double CLOSED_POSITION = 0.7;        // Gate Closed position
     public static String GATE_SERVO = "gateServo";
 
@@ -56,8 +61,8 @@ public class BioBuzzRoboCentricBlue extends LinearOpMode {
     public static boolean TURRET_REVERSED = false;         // Set true if turret rotates opposite
 
     // --- GoBILDA 6000 RPM Flywheel Motors Configuration (Gamepad 2) ---
-    public static double FLYWHEEL_OPEN_RPM = 2400.0;     // Target RPM when shifter is OPEN (0.25)
-    public static double FLYWHEEL_CLOSED_RPM = 2400.0;   // Target RPM when shifter is CLOSED (0.95)
+    public static double FLYWHEEL_OPEN_RPM = 2520.0;     // Target RPM when shifter is OPEN / Nectar mode (0.25)
+    public static double FLYWHEEL_CLOSED_RPM = 2420.0;   // Target RPM when shifter is CLOSED / Pollen mode (0.95)
     public static double TICKS_PER_REV = 28.0;          // GoBILDA 6000 RPM motor encoder resolution (28 PPR)
     public static boolean MOTOR_2_REVERSED = true;      // Set true if motor 2 spins opposite to motor 1
     public static boolean FLYWHEEL_ENABLED = false;     // Toggle flywheel motors ON/OFF
@@ -146,11 +151,11 @@ public class BioBuzzRoboCentricBlue extends LinearOpMode {
         axonGateServo.setPosition(CLOSED_POSITION);
         shifterServo.setPosition(SHIFTER_CLOSED_POSITION);
 
-        // 4. Shooter Motors
+        // 4. Shooter Motors (Master M1 has encoder, Slave M2 synced to M1 power)
         DcMotorEx shooter1 = hardwareMap.get(DcMotorEx.class, MOTOR_1_NAME);
         DcMotorEx shooter2 = hardwareMap.get(DcMotorEx.class, MOTOR_2_NAME);
 
-        shooter1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -171,7 +176,7 @@ public class BioBuzzRoboCentricBlue extends LinearOpMode {
         // Wait for Start
         while (!isStarted() && !isStopRequested()) {
             telemetry.addData("Status", "Initialized BLUE ALLIANCE Program!");
-            telemetry.addData("Limelight Connected", visionSubsystem.isLimelightConnected() ? "YES" : "NO");
+            telemetry.addData("Camera Hardware", visionSubsystem.getCameraName());
             telemetry.addData("Active Alliance", "BLUE ALLIANCE (Tags 39, 40, 43, 44)");
             telemetry.addData("Intake Lift State", "DEFAULT UP (Left: %.2f | Right: %.2f)", INTAKE_LIFT_UP_POS, initRightPos);
             telemetry.addData("Gate State", "CLOSED (%.2f)", CLOSED_POSITION);
@@ -324,23 +329,18 @@ public class BioBuzzRoboCentricBlue extends LinearOpMode {
             double maxRPMChangePerLoop = 60.0;
             smoothedTargetRPM += Range.clip(desiredRPM - smoothedTargetRPM, -maxRPMChangePerLoop, maxRPMChangePerLoop);
 
-            // Master Encoder Sync Algorithm using Motor 1 Encoder
-            double actualTPS1 = shooter1.getVelocity();
-            double actualRPM1 = (actualTPS1 * 60.0) / TICKS_PER_REV;
-
-            double shooterPower = 0.0;
+            // Master-Slave Synchronized Flywheel Control (M1 closed-loop, M2 follows M1 power)
             if (smoothedTargetRPM > 50.0) {
-                double basePower = smoothedTargetRPM / 6000.0;
-                double errorRPM = smoothedTargetRPM - actualRPM1;
-                double kP = 0.00018;
-                shooterPower = Range.clip(basePower + (errorRPM * kP), 0.0, 1.0);
+                double targetTPS = (smoothedTargetRPM / 60.0) * TICKS_PER_REV;
+                shooter1.setVelocity(targetTPS);
+                shooter2.setPower(shooter1.getPower());
+            } else {
+                shooter1.setVelocity(0.0);
+                shooter2.setPower(0.0);
             }
 
-            shooter1.setPower(shooterPower);
-            shooter2.setPower(shooterPower);
-
-            double actualTPS2 = shooter2.getVelocity();
-            double actualRPM2 = (actualTPS2 * 60.0) / TICKS_PER_REV;
+            double actualTPS1 = shooter1.getVelocity();
+            double actualRPM1 = Math.abs((actualTPS1 * 60.0) / TICKS_PER_REV);
 
             // ==========================================
             // TELEMETRY
@@ -366,7 +366,8 @@ public class BioBuzzRoboCentricBlue extends LinearOpMode {
             telemetry.addData("Turret Angle", "Target: %.1f° | Current: %.1f° (%d ticks)",
                     targetTurretAngle, currentTurretAngle, turret.getCurrentPosition());
             telemetry.addData("Shooter Flywheel (G2.Y)", FLYWHEEL_ENABLED ? "RUNNING (Target: %.0f RPM)" : "STOPPED", currentTargetRPM);
-            telemetry.addData("Shooter Motors Measured", "M1: %.1f RPM | M2: %.1f RPM", actualRPM1, actualRPM2);
+            telemetry.addData("Shooter Motors Measured", "M1 (Master): %.1f RPM | M2 (Slave): Synced (%.0f%% Pwr)",
+                    actualRPM1, shooter2.getPower() * 100.0);
 
             telemetry.update();
         }
