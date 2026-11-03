@@ -7,21 +7,18 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
 
 /**
- * Dedicated TeleOp OpMode for BLUE Alliance.
- * Filtered strictly to Blue Alliance AprilTags: Left (39, 40) | Right (43, 44).
+ * [ARCHIVED / DEPRECATED]
+ * Superseded by BioBuzzCentricBlueWarriors and BioBuzzCentricBlueStrikers.
  */
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-
 @Disabled
 @Config
-@TeleOp(name = "BioBuzz Robo Centric - BLUE", group = "TeleOp")
+@TeleOp(name = "BioBuzz Robo Centric - BLUE [ARCHIVED]", group = "TeleOp")
 public class BioBuzzRoboCentricBlue extends LinearOpMode {
 
     // --- Mecanum Drive Configuration (Gamepad 1) ---
