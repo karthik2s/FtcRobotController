@@ -51,10 +51,10 @@ public class LimelightShooterSubsystem {
     public static double TURRET_MAX_ANGLE_DEG = 90.0;
 
     // Ball Type Flywheel RPM Curves (Pollen = Smaller Ball, Nectar = Bigger Ball)
-    public static double POLLEN_BASE_RPM = 2420.0;         // Base RPM for Pollen (Smaller ball)
-    public static double POLLEN_RPM_SLOPE = 12.0;          // RPM increase per inch of distance
-    public static double NECTAR_BASE_RPM = 2520.0;         // Base RPM for Nectar (Bigger ball)
-    public static double NECTAR_RPM_SLOPE = 15.0;          // RPM increase per inch of distance
+    public static double POLLEN_BASE_RPM = 2150.0;         // Base RPM for Pollen (Smaller ball)
+    public static double POLLEN_RPM_SLOPE = 6.0;           // RPM increase per inch of distance (6 RPM/inch)
+    public static double NECTAR_BASE_RPM = 2320.0;         // Base RPM for Nectar (Bigger ball)
+    public static double NECTAR_RPM_SLOPE = 6.0;           // RPM increase per inch of distance (6 RPM/inch)
 
     public static double FLYWHEEL_MIN_RPM = 2000.0;
     public static double FLYWHEEL_MAX_RPM = 4500.0;
@@ -417,18 +417,22 @@ public class LimelightShooterSubsystem {
     }
 
     /**
-     * Calculates required flywheel RPM dynamically based on AprilTag distance and ball type:
+     * Calculates required flywheel RPM dynamically based on AprilTag distance, ball type, and custom base RPM:
      * - isNectarMode = false (Pollen / Smaller Ball)
      * - isNectarMode = true (Nectar / Bigger Ball)
      */
-    public double getFlywheelTargetRPM(boolean isNectarMode) {
-        double baseRPM = isNectarMode ? NECTAR_BASE_RPM : POLLEN_BASE_RPM;
+    public double getFlywheelTargetRPM(boolean isNectarMode, double customBaseRPM) {
         if (!targetVisible || calculatedDistanceInches <= 0) {
-            return baseRPM;
+            return customBaseRPM;
         }
         double slope = isNectarMode ? NECTAR_RPM_SLOPE : POLLEN_RPM_SLOPE;
-        double calculatedRPM = baseRPM + (slope * calculatedDistanceInches);
+        double calculatedRPM = customBaseRPM + (slope * calculatedDistanceInches);
         return Range.clip(calculatedRPM, FLYWHEEL_MIN_RPM, FLYWHEEL_MAX_RPM);
+    }
+
+    public double getFlywheelTargetRPM(boolean isNectarMode) {
+        double baseRPM = isNectarMode ? NECTAR_BASE_RPM : POLLEN_BASE_RPM;
+        return getFlywheelTargetRPM(isNectarMode, baseRPM);
     }
 
     /**
