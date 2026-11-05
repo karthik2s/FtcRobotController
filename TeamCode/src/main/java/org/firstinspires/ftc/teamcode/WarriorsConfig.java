@@ -15,7 +15,7 @@ public class WarriorsConfig {
     public static String RIGHT_FRONT_NAME = "rightFront";
     public static String RIGHT_BACK_NAME = "rightBack";
     public static double DRIVE_POWER_SCALE = 1.0;
-    public static boolean INVERT_DRIVE_Y = true;        // Standard drive direction (Push Up = Forward)
+    public static boolean INVERT_DRIVE_Y = false;       // Reversed drive Y direction for Warriors ONLY
     public static boolean INVERT_STRAFE_X = false;       // Standard strafe direction (Push Right = Strafe Right)
     public static boolean INVERT_TURN_JOYSTICK = true;  // Standard inverted turning (rx = -right_stick_x)
 
