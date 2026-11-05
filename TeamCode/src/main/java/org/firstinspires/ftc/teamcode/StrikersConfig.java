@@ -39,10 +39,10 @@ public class StrikersConfig {
     public static String TURRET_NAME = "turret";
     public static double TURRET_TICKS_PER_REV = 537.7;    // GoBILDA 312 RPM output encoder resolution
     public static double TURRET_GEAR_RATIO = 2.2727;      // GoBILDA 175t:77t turret gear ratio (175.0 / 77.0)
-    public static double TURRET_MAX_POWER = 0.35;         // Capped power limit (35%)
+    public static double TURRET_MAX_POWER = 0.25;         // Smooth power limit (25%) to prevent overshooting
     public static double TURRET_MAX_VELOCITY_DEG_PER_SEC = 90.0; // Max speed cap in degrees/sec (90°/sec)
     public static double TURRET_MAX_ANGLE_DEG = 90.0;     // +/- 90 degrees soft limit from center home
-    public static boolean TURRET_REVERSED = false;        // Set true if turret rotates opposite
+    public static boolean TURRET_REVERSED = false;        // Reversed turret motor direction setting
 
     // --- Flywheel Motors Configuration ---
     public static String MOTOR_1_NAME = "flyWheel1";

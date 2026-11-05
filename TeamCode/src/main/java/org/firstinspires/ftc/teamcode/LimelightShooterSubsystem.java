@@ -14,7 +14,10 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagClusterDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagGameDatabase;
+import org.firstinspires.ftc.vision.apriltag.AprilTagMetadata;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
 
@@ -44,9 +47,9 @@ public class LimelightShooterSubsystem {
     public static double LIMELIGHT_MOUNT_ANGLE_DEG = 45.0;     // 45 degree upward camera mounting pitch angle
     public static int DESIRED_TAG_ID = -1;                 // -1 targets any AprilTag
 
-    public static double TURRET_AUTO_AIM_GAIN = 1.0;       // 1.0 = direct 1:1 target angle calculation
+    public static double TURRET_AUTO_AIM_GAIN = 0.35;      // Damped gain (0.35) to eliminate momentum overshooting/oscillation
     public static double TURRET_AIM_OFFSET_DEG = 0.0;      // Horizontal offset angle (in degrees) from AprilTag center to target basket
-    public static double AIM_DEADBAND_DEG = 0.75;          // Deadband tolerance to prevent hunting/oscillations
+    public static double AIM_DEADBAND_DEG = 1.5;           // Deadband tolerance (1.5°) to prevent hunting/jitter
     public static double TURRET_MIN_ANGLE_DEG = -90.0;
     public static double TURRET_MAX_ANGLE_DEG = 90.0;
 
@@ -80,6 +83,7 @@ public class LimelightShooterSubsystem {
     private double ty = 0.0;
     private double calculatedDistanceInches = 0.0;
     private int detectedTagId = -1;
+    private String tagsSeenSummary = "None";
 
     // Target Lock-On State
     private int lockedTagId = -1;
@@ -139,6 +143,7 @@ public class LimelightShooterSubsystem {
                             .setDrawTagOutline(true)
                             .setDrawAxes(true)
                             .setOutputUnits(DistanceUnit.INCH, AngleUnit.DEGREES)
+                            .setTagLibrary(AprilTagGameDatabase.getCurrentGameTagLibrary())
                             .build();
 
                     visionPortal = new VisionPortal.Builder()
@@ -167,20 +172,19 @@ public class LimelightShooterSubsystem {
      */
     public static boolean isAllianceTag(int tagId, boolean isRedAlliance) {
         if (isRedAlliance) {
-            return tagId == 31 || tagId == 32 || tagId == 35 || tagId == 36 || tagId == 4 || tagId == 5 || tagId == 6 || tagId == 14 || tagId == 15 || tagId == 16;
+            return tagId == 30 || tagId == 31 || tagId == 32 || tagId == 33 || tagId == 34 || tagId == 35 || tagId == 36 || tagId == 37 || tagId == 4 || tagId == 5 || tagId == 6 || tagId == 14 || tagId == 15 || tagId == 16;
         } else {
-            return tagId == 39 || tagId == 40 || tagId == 43 || tagId == 44 || tagId == 1 || tagId == 2 || tagId == 3 || tagId == 11 || tagId == 12 || tagId == 13;
+            return tagId == 38 || tagId == 39 || tagId == 40 || tagId == 41 || tagId == 42 || tagId == 43 || tagId == 44 || tagId == 45 || tagId == 1 || tagId == 2 || tagId == 3 || tagId == 11 || tagId == 12 || tagId == 13;
         }
     }
 
-    public static boolean isAllianceTag(AprilTagSingleDetection singleDet, boolean isRedAlliance) {
-        if (singleDet == null) return false;
-        if (singleDet.metadata != null && singleDet.metadata.name != null) {
-            String name = singleDet.metadata.name.toUpperCase();
+    public static boolean isAllianceTag(int tagId, AprilTagMetadata metadata, boolean isRedAlliance) {
+        if (metadata != null && metadata.name != null) {
+            String name = metadata.name.toUpperCase();
             if (isRedAlliance && name.contains("RED")) return true;
             if (!isRedAlliance && name.contains("BLUE")) return true;
         }
-        return isAllianceTag(singleDet.id, isRedAlliance);
+        return isAllianceTag(tagId, isRedAlliance);
     }
 
     /**
@@ -291,15 +295,43 @@ public class LimelightShooterSubsystem {
         List<AprilTagDetection> currentDetections = aprilTagProcessor.getDetections();
 
         if (currentDetections != null && !currentDetections.isEmpty()) {
-            AprilTagSingleDetection matchedDetection = null;
+            AprilTagDetection matchedDetection = null;
+            int matchedTagId = -1;
+
+            // Track all seen tag IDs in frame for telemetry
+            StringBuilder seenTags = new StringBuilder();
 
             // 1. Lock persistence
             if (lockedTagId != -1) {
                 for (AprilTagDetection detection : currentDetections) {
+                    if (detection == null) continue;
+
+                    int tagId = -1;
+                    AprilTagMetadata meta = null;
+
                     if (detection instanceof AprilTagSingleDetection) {
-                        AprilTagSingleDetection singleDet = (AprilTagSingleDetection) detection;
-                        if (singleDet.id == lockedTagId && singleDet.ftcPose != null && isAllianceTag(singleDet, isRedAlliance)) {
-                            matchedDetection = singleDet;
+                        AprilTagSingleDetection single = (AprilTagSingleDetection) detection;
+                        tagId = single.id;
+                        meta = single.metadata;
+                    } else if (detection instanceof AprilTagClusterDetection) {
+                        AprilTagClusterDetection cluster = (AprilTagClusterDetection) detection;
+                        if (cluster.metadata != null && cluster.metadata.name != null) {
+                            String name = cluster.metadata.name.toUpperCase();
+                            if (name.contains("RED")) tagId = 34;
+                            else if (name.contains("BLUE")) tagId = 38;
+                            else tagId = 34;
+                        } else {
+                            tagId = 34;
+                        }
+                    }
+
+                    if (tagId != -1) {
+                        if (seenTags.length() > 0) seenTags.append(", ");
+                        seenTags.append("#").append(tagId);
+
+                        if (tagId == lockedTagId && isAllianceTag(tagId, meta, isRedAlliance)) {
+                            matchedDetection = detection;
+                            matchedTagId = tagId;
                             break;
                         }
                     }
@@ -310,30 +342,64 @@ public class LimelightShooterSubsystem {
             if (matchedDetection == null) {
                 double bestBearing = Double.MAX_VALUE;
                 for (AprilTagDetection detection : currentDetections) {
+                    if (detection == null) continue;
+
+                    int tagId = -1;
+                    AprilTagMetadata meta = null;
+
                     if (detection instanceof AprilTagSingleDetection) {
-                        AprilTagSingleDetection singleDet = (AprilTagSingleDetection) detection;
-                        if (singleDet.ftcPose != null && isAllianceTag(singleDet, isRedAlliance)) {
-                            double absBearing = Math.abs(singleDet.ftcPose.bearing);
+                        AprilTagSingleDetection single = (AprilTagSingleDetection) detection;
+                        tagId = single.id;
+                        meta = single.metadata;
+                    } else if (detection instanceof AprilTagClusterDetection) {
+                        AprilTagClusterDetection cluster = (AprilTagClusterDetection) detection;
+                        if (cluster.metadata != null && cluster.metadata.name != null) {
+                            String name = cluster.metadata.name.toUpperCase();
+                            if (name.contains("RED")) tagId = 34;
+                            else if (name.contains("BLUE")) tagId = 38;
+                            else tagId = 34;
+                        } else {
+                            tagId = 34;
+                        }
+                    }
+
+                    if (tagId != -1) {
+                        if (seenTags.indexOf("#" + tagId) < 0) {
+                            if (seenTags.length() > 0) seenTags.append(", ");
+                            seenTags.append("#").append(tagId);
+                        }
+
+                        if (isAllianceTag(tagId, meta, isRedAlliance)) {
+                            double bearing = (detection.ftcPose != null) ? detection.ftcPose.bearing : 0.0;
+                            double absBearing = Math.abs(bearing);
                             if (absBearing < bestBearing) {
                                 bestBearing = absBearing;
-                                matchedDetection = singleDet;
+                                matchedDetection = detection;
+                                matchedTagId = tagId;
                             }
                         }
                     }
                 }
             }
 
+            tagsSeenSummary = seenTags.length() > 0 ? seenTags.toString() : "None";
+
             // 3. Process matched tag
-            if (matchedDetection != null && matchedDetection.ftcPose != null) {
+            if (matchedDetection != null) {
                 targetVisible = true;
                 targetLocked = true;
-                lockedTagId = matchedDetection.id;
+                lockedTagId = matchedTagId;
                 detectedTagId = lockedTagId;
-                tx = matchedDetection.ftcPose.bearing;     // Horizontal angle offset in degrees
-                ty = matchedDetection.ftcPose.elevation;   // Elevation angle in degrees
-                calculatedDistanceInches = Range.clip(matchedDetection.ftcPose.range, 12.0, 144.0); // 3D Distance in inches
+
+                if (matchedDetection.ftcPose != null) {
+                    tx = matchedDetection.ftcPose.bearing;     // Horizontal angle offset in degrees
+                    ty = matchedDetection.ftcPose.elevation;   // Elevation angle in degrees
+                    calculatedDistanceInches = Range.clip(matchedDetection.ftcPose.range, 12.0, 144.0); // 3D Distance in inches
+                }
                 framesSinceTagSeen = 0;
             }
+        } else {
+            tagsSeenSummary = "None";
         }
     }
 
@@ -369,6 +435,10 @@ public class LimelightShooterSubsystem {
 
     public boolean isTargetVisible() {
         return targetVisible;
+    }
+
+    public String getTagsSeenSummary() {
+        return tagsSeenSummary;
     }
 
     public boolean isTargetLocked() {
@@ -412,7 +482,8 @@ public class LimelightShooterSubsystem {
         if (!targetVisible || Math.abs(errorTx) <= AIM_DEADBAND_DEG) {
             return currentTurretAngleDeg;
         }
-        double desiredTurretAngle = currentTurretAngleDeg - (errorTx * TURRET_AUTO_AIM_GAIN);
+        // Add errorTx so positive horizontal angle (target to right) turns turret to the right (+)
+        double desiredTurretAngle = currentTurretAngleDeg + (errorTx * TURRET_AUTO_AIM_GAIN);
         return Range.clip(desiredTurretAngle, TURRET_MIN_ANGLE_DEG, TURRET_MAX_ANGLE_DEG);
     }
 
